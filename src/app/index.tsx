@@ -98,21 +98,47 @@
 // });
 
 import { useState } from 'react';
-import { GestureResponderEvent, Image, Pressable, StyleSheet, View, Text } from 'react-native';
+import { GestureResponderEvent, Image, Pressable, StyleSheet, View, Text, Modal, TextInput, Button, LayoutChangeEvent } from 'react-native';
 
-type Pin = { x: number; y: number };
+const roomImageSource = require('../../assets/rooms/roomsample.jpeg');
+const roomImageInfo = Image.resolveAssetSource(roomImageSource);
+
+const PLACEHOLDER_OPTIONS = ['hammer', 'screwdriver', 'wrench', 'pliers', 'baskets', 'tape measure', 'calligraphy pen', 'alarm clock', 'thumbtacks', 'hangers'];
+
+type Pin = { x: number; y: number; name: string };
 
 export default function HomeScreen() {
     const [pins, setPins] = useState<Pin[]>([]);
+    const [pendingTap, setPendingTap] = useState<{ x: number; y: number; } | null>(null);
+    const [nameInput, setNameInput] = useState('');
+    const [placeholder, setPlaceholder] = useState('e.g screwdriver');
+    const [wrapperSize, setWrapperSize] = useState({ width: 0, height: 0 });
+
+    const onWrapperLayout = (event: LayoutChangeEvent) => {
+        const { width, height } = event.nativeEvent.layout;
+        setWrapperSize({ width, height });
+    }
 
     const handleTap = (event: GestureResponderEvent) => {
         const nativeEvent = event.nativeEvent as any;
         const x = nativeEvent.locationX ?? nativeEvent.offsetX;
         const y = nativeEvent.locationY ?? nativeEvent.offsetY;
-        setPins((currentPins) => [...currentPins, { x, y }]);
+        setPendingTap({ x, y });
 
         // const { locationX, locationY } = event.nativeEvent;
         // console.log('Tapped at:', locationX, locationY);
+    };
+
+    const confirmName = () => {
+        if (!pendingTap || nameInput.trim() === '') return;
+        setPins((currentPins) => [...currentPins, {...pendingTap, name: nameInput.trim() }]);
+        setPendingTap(null);
+        setNameInput('');
+    };
+
+    const cancelTap = () => {
+        setPendingTap(null);
+        setNameInput('');
     };
 
     return (
@@ -125,13 +151,38 @@ export default function HomeScreen() {
                 />
                 {pins.map((pin, index) => (
                     <Text 
-                    key={index}
-                    style={[styles.pin, { left: pin.x - 12, top: pin.y - 24}]}
+                        key={index}
+                        style={[styles.pin, { left: pin.x - 12, top: pin.y - 24}]}
                     >
                         📍
                     </Text>
                 ))}
             </Pressable>
+
+            {/* autofocus puts cursor in immediately so user can type right away without having to click
+            modal is the component for popups/dialogues */}
+            <Modal visible={pendingTap !== null} transparent animationType="fade" >
+                <View style={styles.modalBackdrop}>
+                    <View style={styles.modalBox}>
+                        <Text style={styles.modalLabel}>"What is placed here?"</Text>
+                        <TextInput 
+                            style={styles.input}
+                            placeholder="e.g. screwdriver"
+                            value={nameInput}
+                            onChangeText={setNameInput}
+                            autoFocus 
+                        />
+                        <View style={styles.modalButtons}>
+                            <Button title="Cancel" onPress={cancelTap} />
+                            <Button title="Save" onPress={confirmName} />
+                        </View>
+                    </View>
+                </View>
+
+
+            </Modal>
+
+
         </View>
     )
 }
@@ -154,5 +205,34 @@ const styles = StyleSheet.create( {
     pin: {
         position: 'absolute',
         fontSize: 24,
+    },
+    modalBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalBox: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 20,
+        width: '80%',
+        gap: 12,
+    },
+    modalLabel: {
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    input: {
+        borderWidth: 1,
+        borderColor: '#ccc',
+        borderRadius: 8,
+        padding: 10,
+        fontSize: 16,
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 12,
     },
 });
