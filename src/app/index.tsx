@@ -100,14 +100,16 @@
 import { useState } from 'react';
 import { GestureResponderEvent, Image, Pressable, StyleSheet, View, Text } from 'react-native';
 
+type Pin = { x: number; y: number };
+
 export default function HomeScreen() {
-    const [pin, setPin] = useState<{ x: number; y: number} | null>(null);
+    const [pins, setPins] = useState<Pin[]>([]);
 
     const handleTap = (event: GestureResponderEvent) => {
         const nativeEvent = event.nativeEvent as any;
         const x = nativeEvent.locationX ?? nativeEvent.offsetX;
         const y = nativeEvent.locationY ?? nativeEvent.offsetY;
-        setPin({ x,y });
+        setPins((currentPins) => [...currentPins, { x, y }]);
 
         // const { locationX, locationY } = event.nativeEvent;
         // console.log('Tapped at:', locationX, locationY);
@@ -121,11 +123,14 @@ export default function HomeScreen() {
                 style={styles.roomImage}
                 resizeMode="contain"
                 />
-                {pin && (
-                    <Text style={[styles.pin, { left: pin.x - 12, top: pin.y - 24}]}>
+                {pins.map((pin, index) => (
+                    <Text 
+                    key={index}
+                    style={[styles.pin, { left: pin.x - 12, top: pin.y - 24}]}
+                    >
                         📍
                     </Text>
-                )}
+                ))}
             </Pressable>
         </View>
     )
