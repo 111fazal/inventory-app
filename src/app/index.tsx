@@ -119,11 +119,37 @@ export default function HomeScreen() {
         setWrapperSize({ width, height });
     }
 
+    const getImageBounds = () => {
+        const { width: W, height: H } = wrapperSize;
+        const { width: w, height: h } = roomImageInfo;
+        if (!W || !H || !w || !h ) return null;
+        const scale = Math.min(W / w, H / h);
+        const renderedWidth = w * scale;
+        const renderedHeight = h * scale;
+        const offsetX = (W - renderedWidth) / 2;
+        const offsetY = (H - renderedHeight) / 2;
+        return {
+            left: offsetX,
+            top: offsetY,
+            right: offsetX + renderedWidth,
+            bottom: offsetY + renderedHeight,
+        };
+    };
+
     const handleTap = (event: GestureResponderEvent) => {
         const nativeEvent = event.nativeEvent as any;
         const x = nativeEvent.locationX ?? nativeEvent.offsetX;
         const y = nativeEvent.locationY ?? nativeEvent.offsetY;
-        setPendingTap({ x, y });
+        // setPendingTap({ x, y });
+
+        const bounds = getImageBounds();
+        if (bounds && (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom)) {
+            return;
+        }
+
+        const randomPlaceholder = PLACEHOLDER_OPTIONS[Math.floor(Math.random() * PLACEHOLDER_OPTIONS.length)];
+        setPlaceholder(randomPlaceholder);
+        setPendingTap({ x,y })
 
         // const { locationX, locationY } = event.nativeEvent;
         // console.log('Tapped at:', locationX, locationY);
@@ -143,7 +169,7 @@ export default function HomeScreen() {
 
     return (
         <View style={styles.container}>
-            <Pressable onPress={handleTap} style={styles.imageWrapper}>
+            <Pressable onPress={handleTap} onLayout={onWrapperLayout} style={styles.imageWrapper}>
                 <Image 
                 source={require('../../assets/rooms/roomsample.jpeg')}
                 style={styles.roomImage}
@@ -167,7 +193,7 @@ export default function HomeScreen() {
                         <Text style={styles.modalLabel}>"What is placed here?"</Text>
                         <TextInput 
                             style={styles.input}
-                            placeholder="e.g. screwdriver"
+                            placeholder={`e.g. ${placeholder}`}
                             value={nameInput}
                             onChangeText={setNameInput}
                             autoFocus 
