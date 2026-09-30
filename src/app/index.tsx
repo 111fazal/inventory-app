@@ -1,118 +1,50 @@
-// import * as Device from 'expo-device';
-// import { Platform, StyleSheet } from 'react-native';
-// import { SafeAreaView } from 'react-native-safe-area-context';
-
-// import { AnimatedIcon } from '@/components/animated-icon';
-// import { HintRow } from '@/components/hint-row';
-// import { ThemedText } from '@/components/themed-text';
-// import { ThemedView } from '@/components/themed-view';
-// import { WebBadge } from '@/components/web-badge';
-// import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-// function getDevMenuHint() {
-//   if (Platform.OS === 'web') {
-//     return <ThemedText type="small">use browser devtools</ThemedText>;
-//   }
-//   if (Device.isDevice) {
-//     return (
-//       <ThemedText type="small">
-//         shake device or press <ThemedText type="code">m</ThemedText> in terminal
-//       </ThemedText>
-//     );
-//   }
-//   const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-//   return (
-//     <ThemedText type="small">
-//       press <ThemedText type="code">{shortcut}</ThemedText>
-//     </ThemedText>
-//   );
-// }
-
-// export default function HomeScreen() {
-//   return (
-//     <ThemedView style={styles.container}>
-//       <SafeAreaView style={styles.safeArea}>
-//         <ThemedView style={styles.heroSection}>
-//           <AnimatedIcon />
-//           <ThemedText type="title" style={styles.title}>
-//             Welcome to&nbsp;Expo
-//           </ThemedText>
-//         </ThemedView>
-
-//         <ThemedText type="code" style={styles.code}>
-//           get started
-//         </ThemedText>
-
-//         <ThemedView type="backgroundElement" style={styles.stepContainer}>
-//           <HintRow
-//             title="Try editing"
-//             hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-//           />
-//           <HintRow title="Dev tools" hint={getDevMenuHint()} />
-//           <HintRow
-//             title="Fresh start"
-//             hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-//           />
-//         </ThemedView>
-
-//         {Platform.OS === 'web' && <WebBadge />}
-//       </SafeAreaView>
-//     </ThemedView>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     justifyContent: 'center',
-//     flexDirection: 'row',
-//   },
-//   safeArea: {
-//     flex: 1,
-//     paddingHorizontal: Spacing.four,
-//     alignItems: 'center',
-//     gap: Spacing.three,
-//     paddingBottom: BottomTabInset + Spacing.three,
-//     maxWidth: MaxContentWidth,
-//   },
-//   heroSection: {
-//     alignItems: 'center',
-//     justifyContent: 'center',
-//     flex: 1,
-//     paddingHorizontal: Spacing.four,
-//     gap: Spacing.four,
-//   },
-//   title: {
-//     textAlign: 'center',
-//   },
-//   code: {
-//     textTransform: 'uppercase',
-//   },
-//   stepContainer: {
-//     gap: Spacing.three,
-//     alignSelf: 'stretch',
-//     paddingHorizontal: Spacing.three,
-//     paddingVertical: Spacing.four,
-//     borderRadius: Spacing.four,
-//   },
-// });
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GestureResponderEvent, Image, Pressable, StyleSheet, View, Text, Modal, TextInput, Button, LayoutChangeEvent } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const roomImageSource = require('../../assets/rooms/roomsample.jpeg');
 const roomImageInfo = Image.resolveAssetSource(roomImageSource);
 
 const PLACEHOLDER_OPTIONS = ['hammer', 'screwdriver', 'wrench', 'pliers', 'baskets', 'tape measure', 'calligraphy pen', 'alarm clock', 'thumbtacks', 'hangers'];
 
+const STORAGE_KEY = 'pins';
+
+
 type Pin = { x: number; y: number; name: string };
 
 export default function HomeScreen() {
     const [pins, setPins] = useState<Pin[]>([]);
+    const [isLoaded, setIsLoaded] = useState(false);
     const [pendingTap, setPendingTap] = useState<{ x: number; y: number; } | null>(null);
     const [nameInput, setNameInput] = useState('');
     const [placeholder, setPlaceholder] = useState('e.g screwdriver');
     const [wrapperSize, setWrapperSize] = useState({ width: 0, height: 0 });
+    const [selectedPinIndex, setSelectedPinIndex] = useState<number | null>(null);
+
+    // Load the saved pins when the app first starts (if any)
+    useEffect(() => {
+        const loadPins = async () => {
+            try {
+                const saved = await AsyncStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    setPins(JSON.parse(saved));
+                }
+            } catch (error) {
+                console.error('Failed to load pins', error);
+            } finally {
+                setIsLoaded(true);
+            }
+        };
+        loadPins();
+    }, []);
+
+    // When the pin array changes, save pins to storage 
+    useEffect(() => {
+        if (!isLoaded) return;
+        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(pins)).catch((error) => {
+            console.error('Failed to save pins', error);
+        });
+    }, [pins, isLoaded]);
 
     const onWrapperLayout = (event: LayoutChangeEvent) => {
         const { width, height } = event.nativeEvent.layout;
@@ -167,6 +99,20 @@ export default function HomeScreen() {
         setNameInput('');
     };
 
+    const openPin = (index: number) => {
+        setSelectedPinIndex(index);
+    };
+
+    const closePinDetail = () => {
+        setSelectedPinIndex(null);
+    };
+
+    const deleteSelectedPin = () => {
+        if (selectedPinIndex === null) return;
+        setPins((currentPins) => currentPins.filter((_, i) => i !== selectedPinIndex));
+        setSelectedPinIndex(null);
+    }
+
     return (
         <View style={styles.container}>
             <Pressable onPress={handleTap} onLayout={onWrapperLayout} style={styles.imageWrapper}>
@@ -176,12 +122,13 @@ export default function HomeScreen() {
                 resizeMode="contain"
                 />
                 {pins.map((pin, index) => (
-                    <Text 
+                    <Pressable 
                         key={index}
+                        onPress={() => openPin(index)}
                         style={[styles.pin, { left: pin.x - 12, top: pin.y - 24}]}
                     >
-                        📍
-                    </Text>
+                        <Text style={styles.pinEmoji}>📍</Text>
+                    </Pressable>
                 ))}
             </Pressable>
 
@@ -208,6 +155,21 @@ export default function HomeScreen() {
 
             </Modal>
 
+            <Modal visible={selectedPinIndex !== null} transparent animationType="fade">
+                <View style={styles.modalBackdrop}>
+                    <View style={styles.modalBox}>
+                        <Text style={styles.modalLabel}>
+                            {selectedPinIndex !== null ? pins[selectedPinIndex].name : ''}
+                        </Text>
+                        <View style={styles.modalButtons}>
+                            <Button title="Close" onPress={closePinDetail} />
+                            <Button title="Delete" color="#d32f2f" onPress={deleteSelectedPin} />
+                        </View>
+                    </View>
+                </View>
+
+            </Modal>
+
 
         </View>
     )
@@ -230,7 +192,11 @@ const styles = StyleSheet.create( {
     },
     pin: {
         position: 'absolute',
+    },
+    pinEmoji: {
         fontSize: 24,
+        padding: 6,
+
     },
     modalBackdrop: {
         flex: 1,
