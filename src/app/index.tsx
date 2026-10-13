@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { GestureResponderEvent, Image, Pressable, StyleSheet, View, Text, Modal, TextInput, Button, LayoutChangeEvent } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 
 const roomImageSource = require('../../assets/rooms/roomsample.jpeg');
 const roomImageInfo = Image.resolveAssetSource(roomImageSource);
@@ -10,7 +11,7 @@ const PLACEHOLDER_OPTIONS = ['hammer', 'screwdriver', 'wrench', 'pliers', 'baske
 const STORAGE_KEY = 'pins';
 
 
-type Pin = { x: number; y: number; name: string };
+type Pin = { x: number; y: number; name: string; note?: string; imageUri?: string };
 
 export default function HomeScreen() {
     const [pins, setPins] = useState<Pin[]>([]);
@@ -20,6 +21,8 @@ export default function HomeScreen() {
     const [placeholder, setPlaceholder] = useState('e.g screwdriver');
     const [wrapperSize, setWrapperSize] = useState({ width: 0, height: 0 });
     const [selectedPinIndex, setSelectedPinIndex] = useState<number | null>(null);
+    const [noteInput, setNoteInput] = useState('');
+    const [imageUri, setImageUri] = useState<string | null>(null);
 
     // Load the saved pins when the app first starts (if any)
     useEffect(() => {
@@ -88,15 +91,28 @@ export default function HomeScreen() {
     };
 
     const confirmName = () => {
-        if (!pendingTap || nameInput.trim() === '') return;
-        setPins((currentPins) => [...currentPins, {...pendingTap, name: nameInput.trim() }]);
+        if (!pendingTap || nameInput.trim() == '') return;
+        setPins((currentPins) => [
+            ...currentPins,
+            {
+                ...pendingTap,
+                name: nameInput.trim(),
+                note: noteInput.trim(), 
+                imageUri: imageUri ?? undefined,
+            },
+        ]);
+
         setPendingTap(null);
         setNameInput('');
+        setNoteInput('');
+        setImageUri(null);
     };
 
     const cancelTap = () => {
         setPendingTap(null);
         setNameInput('');
+        setNoteInput('');
+        setImageUri(null);
     };
 
     const openPin = (index: number) => {
@@ -111,7 +127,29 @@ export default function HomeScreen() {
         if (selectedPinIndex === null) return;
         setPins((currentPins) => currentPins.filter((_, i) => i !== selectedPinIndex));
         setSelectedPinIndex(null);
-    }
+    };
+
+    const pickImage = async () => {
+        //open phone's camera, async because we are waiting on the user 
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            quality: 0.7 //compress images for storage 
+        });
+        //only save when the user picks something 
+        if (!result.canceled) {
+            setImageUri(result.assets[0].uri);
+        }
+    };
+
+    const takePhoto = async () => {
+        //acquire permission for camera 
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) return;
+        const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+        if (!result.canceled) {
+            setImageUri(result.assets[0].uri);
+        }
+    };
 
     return (
         <View style={styles.container}>
@@ -145,6 +183,21 @@ export default function HomeScreen() {
                             onChangeText={setNameInput}
                             autoFocus 
                         />
+
+                        <TextInput 
+                            style={[styles.input, styles.noteInput]}
+                            placeholder="Note (optional)"
+                            value={noteInput}
+                            onChangeText={setNoteInput}
+                            multiline
+                        />
+                        <View style={styles.modalButtons}>
+                            <Button title="Take photo" onPress={takePhoto} />
+                            <Button title="Choose photo" onPress={pickImage} />
+                        </View>
+
+                        {imageUri && <Image source={{ uri: imageUri }} style={styles.preview} />}
+
                         <View style={styles.modalButtons}>
                             <Button title="Cancel" onPress={cancelTap} />
                             <Button title="Save" onPress={confirmName} />
@@ -161,6 +214,15 @@ export default function HomeScreen() {
                         <Text style={styles.modalLabel}>
                             {selectedPinIndex !== null ? pins[selectedPinIndex].name : ''}
                         </Text>
+
+                        {selectedPinIndex != null && pins[selectedPinIndex].imageUri && (
+                            <Image source={{ uri: pins[selectedPinIndex].imageUri }} style={styles.preview} />
+                        )}
+                        {selectedPinIndex != null && !!pins[selectedPinIndex].note && (
+                            <Text>{pins[selectedPinIndex].note}</Text>
+                        )}
+
+
                         <View style={styles.modalButtons}>
                             <Button title="Close" onPress={closePinDetail} />
                             <Button title="Delete" color="#d32f2f" onPress={deleteSelectedPin} />
@@ -227,4 +289,13 @@ const styles = StyleSheet.create( {
         justifyContent: 'flex-end',
         gap: 12,
     },
+    noteInput: {
+        minHeight: 60,
+        textAlignVertical: 'top',
+    },
+    preview: {
+        width: '100%',
+        height: 160, 
+        borderRadius: 8,
+    }
 });
